@@ -6,6 +6,8 @@ Run:  python3 scripts/test_sync_site.py
 
 import importlib.util
 import json
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -69,6 +71,25 @@ class RenderTests(unittest.TestCase):
         once, _ = ss.render(seed, data)
         twice, _ = ss.render(once, data)
         self.assertEqual(once, twice)
+
+    def test_check_fails_when_marker_missing(self):
+        # A value with no marker in the HTML must fail --check, not pass silently.
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            dp = Path(d) / "site.json"
+            hp = Path(d) / "index.html"
+            dp.write_text(json.dumps({"values": {"synced": "2026-05-24"}}), encoding="utf-8")
+            hp.write_text("<html>no markers here</html>", encoding="utf-8")
+            os.environ["SITE_DATA"] = str(dp)
+            os.environ["SITE_HTML"] = str(hp)
+            old_argv = sys.argv
+            try:
+                sys.argv = ["sync-site.py", "--check"]
+                self.assertEqual(ss.main(), 1)
+            finally:
+                sys.argv = old_argv
+                del os.environ["SITE_DATA"]
+                del os.environ["SITE_HTML"]
 
     def test_real_index_in_sync(self):
         data = json.loads((ss.REPO_ROOT / "data/site.json").read_text(encoding="utf-8"))

@@ -28,6 +28,14 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 VALUE = re.compile(r"(<!-- v:([A-Za-z0-9_]+) -->)(.*?)(<!-- /v -->)", re.DOTALL)
+
+
+def _disp(path: Path) -> str:
+    """Path relative to the repo root for messages; absolute if outside it."""
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
 # Capture the leading indent on the start-marker line so the regenerated block
 # matches the surrounding HTML's indentation rather than a hardcoded width.
 ORGANS = re.compile(r"(?P<indent>[^\S\n]*)<!-- organs:start -->.*?<!-- organs:end -->",
@@ -56,7 +64,7 @@ def render(text: str, data: dict) -> tuple[str, list[str]]:
         if key not in values:
             warnings.append(f"marker '{key}' has no entry in data['values']")
             return m.group(0)
-        return f"{m.group(1)}{values[key]}{m.group(4)}"
+        return f"{m.group(1)}{html.escape(values[key])}{m.group(4)}"
 
     text = VALUE.sub(vrepl, text)
     for key in values:
@@ -92,18 +100,20 @@ def main() -> int:
         print(f"warn: {w}", file=sys.stderr)
 
     if args.check:
-        if new_text != original:
-            print("error: index.html is out of sync with data/site.json — "
-                  "run `python3 scripts/sync-site.py`", file=sys.stderr)
+        # Warnings (e.g. a deleted marker leaving a value with nowhere to render)
+        # are drift too, even when the text happens to be unchanged.
+        if warnings or new_text != original:
+            print(f"error: {_disp(html_path)} is out of sync with {_disp(data_path)} — "
+                  f"run `python3 scripts/sync-site.py`", file=sys.stderr)
             return 1
-        print("index.html is in sync.")
+        print(f"{_disp(html_path)} is in sync.")
         return 0
 
     if new_text != original:
         html_path.write_text(new_text, encoding="utf-8")
-        print(f"updated {html_path.relative_to(REPO_ROOT)}")
+        print(f"updated {_disp(html_path)}")
     else:
-        print("index.html already in sync — no change.")
+        print(f"{_disp(html_path)} already in sync — no change.")
     return 0
 
 
