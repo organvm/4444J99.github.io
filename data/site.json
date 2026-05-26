@@ -1,0 +1,17 @@
+{
+  "_comment": "Single source of truth for the landing page's dynamic data. Run scripts/sync-site.py (or the site-sync workflow) to inject these into index.html. Edit values here, never inline in index.html.",
+  "values": {
+    "synced": "2026-05-24"
+  },
+  "organs": [
+    { "label": "ORGAN-I (Theoria)", "url": "https://organvm-i-theoria.github.io/" },
+    { "label": "ORGAN-II (Poiesis)", "url": "https://organvm-ii-poiesis.github.io/" },
+    { "label": "ORGAN-III (Ergon)", "url": "https://organvm-iii-ergon.github.io/" },
+    { "label": "ORGAN-IV (Taxis)", "url": "https://organvm-iv-taxis.github.io/" },
+    { "label": "ORGAN-V (Logos)", "url": "https://organvm-v-logos.github.io/" },
+    { "label": "ORGAN-VI (Koinonia)", "url": "https://organvm-vi-koinonia.github.io/" },
+    { "label": "ORGAN-VII (Kerygma)", "url": "https://organvm-vii-kerygma.github.io/" },
+    { "label": "META-ORGANVM", "url": "https://meta-organvm.github.io/" },
+    { "label": "Personal Profile", "url": "https://4444j99.github.io/", "active": true }
+  ]
+}

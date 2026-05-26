@@ -1,0 +1,49 @@
+name: Site Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/site.json"
+      - "index.html"
+      - "scripts/sync-site.py"
+      - ".github/workflows/site-sync.yml"
+  pull_request:
+    paths:
+      - "data/site.json"
+      - "index.html"
+      - "scripts/sync-site.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify (pull requests)
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 scripts/test_sync_site.py
+          python3 scripts/sync-site.py --check
+
+      - name: Sync, test, and commit (push / manual)
+        if: github.event_name != 'pull_request'
+        run: |
+          # Sync first so the in-sync guard test passes on the exact drift it repairs.
+          python3 scripts/sync-site.py
+          python3 scripts/test_sync_site.py
+          if ! git diff --quiet index.html; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add index.html
+            git commit -m "chore: sync landing page from data/site.json [skip ci]"
+            git push
+          fi
