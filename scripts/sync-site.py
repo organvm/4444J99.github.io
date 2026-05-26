@@ -26,20 +26,22 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-INDENT = " " * 12
 
-VALUE = re.compile(r"(<!-- v:([A-Za-z0-9_]+) -->)(.*?)(<!-- /v -->)")
-ORGANS = re.compile(r"(<!-- organs:start -->).*?(<!-- organs:end -->)", re.DOTALL)
+VALUE = re.compile(r"(<!-- v:([A-Za-z0-9_]+) -->)(.*?)(<!-- /v -->)", re.DOTALL)
+# Capture the leading indent on the start-marker line so the regenerated block
+# matches the surrounding HTML's indentation rather than a hardcoded width.
+ORGANS = re.compile(r"(?P<indent>[^\S\n]*)<!-- organs:start -->.*?<!-- organs:end -->",
+                    re.DOTALL)
 
 
-def render_organs(organs: list[dict]) -> str:
-    """Render the nav <li> items at the page's 12-space indent."""
+def render_organs(organs: list[dict], indent: str) -> str:
+    """Render the nav <li> items at the given indent."""
     lines = []
     for o in organs:
         cls = "active" if o.get("active") else ""
         url = html.escape(str(o["url"]), quote=True)
         label = html.escape(str(o["label"]))
-        lines.append(f'{INDENT}<li><a href="{url}" class="{cls}">{label}</a></li>')
+        lines.append(f'{indent}<li><a href="{url}" class="{cls}">{label}</a></li>')
     return "\n".join(lines)
 
 
@@ -62,9 +64,12 @@ def render(text: str, data: dict) -> tuple[str, list[str]]:
             warnings.append(f"value '{key}' has no matching marker in the HTML")
 
     if "organs" in data:
-        block = "\n" + render_organs(data["organs"]) + "\n" + INDENT
         if ORGANS.search(text):
-            text = ORGANS.sub(lambda m: m.group(1) + block + m.group(2), text)
+            def repl(m: re.Match) -> str:
+                indent = m.group("indent")
+                items = render_organs(data["organs"], indent)
+                return f"{indent}<!-- organs:start -->\n{items}\n{indent}<!-- organs:end -->"
+            text = ORGANS.sub(repl, text)
         else:
             warnings.append("no <!-- organs:start/end --> block found in the HTML")
 
@@ -80,8 +85,8 @@ def main() -> int:
     data_path = Path(os.environ.get("SITE_DATA") or REPO_ROOT / "data/site.json")
     html_path = Path(os.environ.get("SITE_HTML") or REPO_ROOT / "index.html")
 
-    data = json.loads(data_path.read_text())
-    original = html_path.read_text()
+    data = json.loads(data_path.read_text(encoding="utf-8"))
+    original = html_path.read_text(encoding="utf-8")
     new_text, warnings = render(original, data)
     for w in warnings:
         print(f"warn: {w}", file=sys.stderr)
@@ -95,7 +100,7 @@ def main() -> int:
         return 0
 
     if new_text != original:
-        html_path.write_text(new_text)
+        html_path.write_text(new_text, encoding="utf-8")
         print(f"updated {html_path.relative_to(REPO_ROOT)}")
     else:
         print("index.html already in sync — no change.")

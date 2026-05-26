@@ -20,14 +20,18 @@ class RenderOrgansTests(unittest.TestCase):
         out = ss.render_organs([
             {"label": "A", "url": "https://a/"},
             {"label": "B", "url": "https://b/", "active": True},
-        ])
+        ], "")
         self.assertIn('<li><a href="https://a/" class="">A</a></li>', out)
         self.assertIn('<li><a href="https://b/" class="active">B</a></li>', out)
 
     def test_escapes_special_chars(self):
-        out = ss.render_organs([{"label": "X & <Y>", "url": "https://x/?a=1&b=2"}])
+        out = ss.render_organs([{"label": "X & <Y>", "url": "https://x/?a=1&b=2"}], "")
         self.assertIn("X &amp; &lt;Y&gt;", out)
         self.assertIn("a=1&amp;b=2", out)
+
+    def test_indent_applied(self):
+        out = ss.render_organs([{"label": "A", "url": "https://a/"}], "    ")
+        self.assertTrue(out.startswith('    <li>'))
 
 
 class RenderTests(unittest.TestCase):
@@ -45,6 +49,13 @@ class RenderTests(unittest.TestCase):
         self.assertIn("<!-- organs:end -->", out)
         self.assertNotIn("stale", out)
 
+    def test_organs_indent_derived_from_marker(self):
+        text = "        <!-- organs:start -->old<!-- organs:end -->"
+        out, _ = ss.render(text, {"organs": [{"label": "A", "url": "https://a/"}]})
+        self.assertTrue(out.startswith("        <!-- organs:start -->"))
+        self.assertIn('\n        <li><a href="https://a/" class="">A</a></li>\n', out)
+        self.assertIn("\n        <!-- organs:end -->", out)
+
     def test_orphan_value_and_marker_warn(self):
         _, warns = ss.render("<!-- v:foo -->x<!-- /v -->", {"values": {"bar": "1"}})
         self.assertTrue(any("foo" in w for w in warns))
@@ -60,8 +71,8 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(once, twice)
 
     def test_real_index_in_sync(self):
-        data = json.loads((ss.REPO_ROOT / "data/site.json").read_text())
-        original = (ss.REPO_ROOT / "index.html").read_text()
+        data = json.loads((ss.REPO_ROOT / "data/site.json").read_text(encoding="utf-8"))
+        original = (ss.REPO_ROOT / "index.html").read_text(encoding="utf-8")
         out, _ = ss.render(original, data)
         self.assertEqual(out, original, "index.html is out of sync with data/site.json")
 
