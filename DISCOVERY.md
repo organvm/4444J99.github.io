@@ -7,3 +7,15 @@
 **Single best first task:** Add a `repos` array to `data/site.json` and extend `sync-site.py` to render the card grid from data (matching the existing organ-nav pattern), so the full landing page is data-driven and CI-updatable end-to-end.
 
 *Auto-discovered 2026-06-22.*
+
+---
+
+# Discovery: organvm/dot-github--4444j99
+
+**Verdict: real value — promoted to ranked tier.**
+
+`organvm/dot-github--4444j99` is an organizational health and automation configuration repository (functioning as a `.github` org-level repo). Its highest latent value is an automated, zero-touch maintenance capability for GitHub Actions dependencies. By providing a centralized `dependabot.yml` and a `dependabot-auto-merge.yml` workflow, it automatically fetches, patches, and squashes minor and patch updates without developer intervention. This establishes a highly reusable "set-and-forget" security and freshness baseline that reduces manual maintenance overhead across the organization's repositories.
+
+**Single best first task:** Validate and document the organizational propagation mechanism so the Dependabot auto-merge workflow is uniformly inherited by all other repositories within the `organvm` ecosystem, creating an instruction guide for adopting this baseline.
+
+*Auto-discovered 2026-06-23.*
