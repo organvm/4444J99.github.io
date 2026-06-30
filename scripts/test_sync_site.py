@@ -91,11 +91,71 @@ class RenderTests(unittest.TestCase):
                 del os.environ["SITE_DATA"]
                 del os.environ["SITE_HTML"]
 
+    def test_missing_organs_block_warns(self):
+        text = "<html>no block here</html>"
+        _, warns = ss.render(text, {"organs": [{"label": "A", "url": "https://a/"}]})
+        self.assertTrue(any("no <!-- organs:start/end --> block" in w for w in warns))
+
     def test_real_index_in_sync(self):
         data = json.loads((ss.REPO_ROOT / "data/site.json").read_text(encoding="utf-8"))
         original = (ss.REPO_ROOT / "index.html").read_text(encoding="utf-8")
         out, _ = ss.render(original, data)
         self.assertEqual(out, original, "index.html is out of sync with data/site.json")
+
+    def test_main_updates_file(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            dp = Path(d) / "site.json"
+            hp = Path(d) / "index.html"
+            dp.write_text(json.dumps({"values": {"synced": "2026-05-24"}}), encoding="utf-8")
+            hp.write_text("<!-- v:synced -->old<!-- /v -->", encoding="utf-8")
+            os.environ["SITE_DATA"] = str(dp)
+            os.environ["SITE_HTML"] = str(hp)
+            old_argv = sys.argv
+            try:
+                sys.argv = ["sync-site.py"]
+                self.assertEqual(ss.main(), 0)
+                self.assertEqual(hp.read_text(encoding="utf-8"), "<!-- v:synced -->2026-05-24<!-- /v -->")
+            finally:
+                sys.argv = old_argv
+                del os.environ["SITE_DATA"]
+                del os.environ["SITE_HTML"]
+
+    def test_main_already_in_sync(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            dp = Path(d) / "site.json"
+            hp = Path(d) / "index.html"
+            dp.write_text(json.dumps({"values": {"synced": "2026-05-24"}}), encoding="utf-8")
+            hp.write_text("<!-- v:synced -->2026-05-24<!-- /v -->", encoding="utf-8")
+            os.environ["SITE_DATA"] = str(dp)
+            os.environ["SITE_HTML"] = str(hp)
+            old_argv = sys.argv
+            try:
+                sys.argv = ["sync-site.py"]
+                self.assertEqual(ss.main(), 0)
+            finally:
+                sys.argv = old_argv
+                del os.environ["SITE_DATA"]
+                del os.environ["SITE_HTML"]
+
+    def test_main_check_in_sync(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            dp = Path(d) / "site.json"
+            hp = Path(d) / "index.html"
+            dp.write_text(json.dumps({"values": {"synced": "2026-05-24"}}), encoding="utf-8")
+            hp.write_text("<!-- v:synced -->2026-05-24<!-- /v -->", encoding="utf-8")
+            os.environ["SITE_DATA"] = str(dp)
+            os.environ["SITE_HTML"] = str(hp)
+            old_argv = sys.argv
+            try:
+                sys.argv = ["sync-site.py", "--check"]
+                self.assertEqual(ss.main(), 0)
+            finally:
+                sys.argv = old_argv
+                del os.environ["SITE_DATA"]
+                del os.environ["SITE_HTML"]
 
 
 if __name__ == "__main__":
