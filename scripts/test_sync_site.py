@@ -6,6 +6,8 @@ Run:  python3 scripts/test_sync_site.py
 
 import importlib.util
 import json
+import os
+import runpy
 import sys
 import tempfile
 import unittest
@@ -43,6 +45,14 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(out, "d: <!-- v:synced -->2026-05-24<!-- /v -->")
         self.assertEqual(warns, [])
 
+    def test_value_marker_escapes_html_and_coerces_none(self):
+        text = ("name: <!-- v:name -->old<!-- /v --> "
+                "empty: <!-- v:empty -->old<!-- /v -->")
+        out, warns = ss.render(text, {"values": {"name": 'A&B <"Q">', "empty": None}})
+        self.assertIn("<!-- v:name -->A&amp;B &lt;&quot;Q&quot;&gt;<!-- /v -->", out)
+        self.assertIn("<!-- v:empty --><!-- /v -->", out)
+        self.assertEqual(warns, [])
+
     def test_organs_block_regenerated(self):
         text = "<!-- organs:start -->stale<!-- organs:end -->"
         out, _ = ss.render(text, {"organs": [{"label": "A", "url": "https://a/"}]})
@@ -74,7 +84,6 @@ class RenderTests(unittest.TestCase):
 
     def test_check_fails_when_marker_missing(self):
         # A value with no marker in the HTML must fail --check, not pass silently.
-        import os
         with tempfile.TemporaryDirectory() as d:
             dp = Path(d) / "site.json"
             hp = Path(d) / "index.html"
@@ -86,6 +95,25 @@ class RenderTests(unittest.TestCase):
             try:
                 sys.argv = ["sync-site.py", "--check"]
                 self.assertEqual(ss.main(), 1)
+            finally:
+                sys.argv = old_argv
+                del os.environ["SITE_DATA"]
+                del os.environ["SITE_HTML"]
+
+    def test_check_fails_on_text_drift_without_rewriting(self):
+        with tempfile.TemporaryDirectory() as d:
+            dp = Path(d) / "site.json"
+            hp = Path(d) / "index.html"
+            stale = "<!-- v:synced -->old<!-- /v -->"
+            dp.write_text(json.dumps({"values": {"synced": "2026-05-24"}}), encoding="utf-8")
+            hp.write_text(stale, encoding="utf-8")
+            os.environ["SITE_DATA"] = str(dp)
+            os.environ["SITE_HTML"] = str(hp)
+            old_argv = sys.argv
+            try:
+                sys.argv = ["sync-site.py", "--check"]
+                self.assertEqual(ss.main(), 1)
+                self.assertEqual(hp.read_text(encoding="utf-8"), stale)
             finally:
                 sys.argv = old_argv
                 del os.environ["SITE_DATA"]
@@ -103,7 +131,6 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(out, original, "index.html is out of sync with data/site.json")
 
     def test_main_updates_file(self):
-        import os
         with tempfile.TemporaryDirectory() as d:
             dp = Path(d) / "site.json"
             hp = Path(d) / "index.html"
@@ -122,7 +149,6 @@ class RenderTests(unittest.TestCase):
                 del os.environ["SITE_HTML"]
 
     def test_main_already_in_sync(self):
-        import os
         with tempfile.TemporaryDirectory() as d:
             dp = Path(d) / "site.json"
             hp = Path(d) / "index.html"
@@ -140,7 +166,6 @@ class RenderTests(unittest.TestCase):
                 del os.environ["SITE_HTML"]
 
     def test_main_check_in_sync(self):
-        import os
         with tempfile.TemporaryDirectory() as d:
             dp = Path(d) / "site.json"
             hp = Path(d) / "index.html"
@@ -152,6 +177,25 @@ class RenderTests(unittest.TestCase):
             try:
                 sys.argv = ["sync-site.py", "--check"]
                 self.assertEqual(ss.main(), 0)
+            finally:
+                sys.argv = old_argv
+                del os.environ["SITE_DATA"]
+                del os.environ["SITE_HTML"]
+
+    def test_script_entrypoint_exits_zero(self):
+        with tempfile.TemporaryDirectory() as d:
+            dp = Path(d) / "site.json"
+            hp = Path(d) / "index.html"
+            dp.write_text(json.dumps({"values": {"synced": "2026-05-24"}}), encoding="utf-8")
+            hp.write_text("<!-- v:synced -->2026-05-24<!-- /v -->", encoding="utf-8")
+            os.environ["SITE_DATA"] = str(dp)
+            os.environ["SITE_HTML"] = str(hp)
+            old_argv = sys.argv
+            try:
+                sys.argv = ["sync-site.py", "--check"]
+                with self.assertRaises(SystemExit) as ctx:
+                    runpy.run_path(str(_HERE / "sync-site.py"), run_name="__main__")
+                self.assertEqual(ctx.exception.code, 0)
             finally:
                 sys.argv = old_argv
                 del os.environ["SITE_DATA"]
