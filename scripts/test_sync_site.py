@@ -63,6 +63,10 @@ class RenderTests(unittest.TestCase):
         self.assertTrue(any("foo" in w for w in warns))
         self.assertTrue(any("bar" in w for w in warns))
 
+    def test_missing_organs_block_warn(self):
+        _, warns = ss.render("<html>no organs block here</html>", {"organs": []})
+        self.assertTrue(any("no <!-- organs:start/end --> block found" in w for w in warns))
+
     def test_idempotent(self):
         data = {"values": {"synced": "2026-05-24"},
                 "organs": [{"label": "A", "url": "https://a/", "active": True}]}
@@ -86,6 +90,61 @@ class RenderTests(unittest.TestCase):
             try:
                 sys.argv = ["sync-site.py", "--check"]
                 self.assertEqual(ss.main(), 1)
+            finally:
+                sys.argv = old_argv
+                del os.environ["SITE_DATA"]
+                del os.environ["SITE_HTML"]
+
+    def test_main_check_success(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            dp = Path(d) / "site.json"
+            hp = Path(d) / "index.html"
+            dp.write_text(json.dumps({}), encoding="utf-8")
+            hp.write_text("<html></html>", encoding="utf-8")
+            os.environ["SITE_DATA"] = str(dp)
+            os.environ["SITE_HTML"] = str(hp)
+            old_argv = sys.argv
+            try:
+                sys.argv = ["sync-site.py", "--check"]
+                self.assertEqual(ss.main(), 0)
+            finally:
+                sys.argv = old_argv
+                del os.environ["SITE_DATA"]
+                del os.environ["SITE_HTML"]
+
+    def test_main_update(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            dp = Path(d) / "site.json"
+            hp = Path(d) / "index.html"
+            dp.write_text(json.dumps({"values": {"a": "1"}}), encoding="utf-8")
+            hp.write_text("<!-- v:a -->0<!-- /v -->", encoding="utf-8")
+            os.environ["SITE_DATA"] = str(dp)
+            os.environ["SITE_HTML"] = str(hp)
+            old_argv = sys.argv
+            try:
+                sys.argv = ["sync-site.py"]
+                self.assertEqual(ss.main(), 0)
+                self.assertEqual(hp.read_text(encoding="utf-8"), "<!-- v:a -->1<!-- /v -->")
+            finally:
+                sys.argv = old_argv
+                del os.environ["SITE_DATA"]
+                del os.environ["SITE_HTML"]
+
+    def test_main_no_change(self):
+        import os
+        with tempfile.TemporaryDirectory() as d:
+            dp = Path(d) / "site.json"
+            hp = Path(d) / "index.html"
+            dp.write_text(json.dumps({"values": {"a": "1"}}), encoding="utf-8")
+            hp.write_text("<!-- v:a -->1<!-- /v -->", encoding="utf-8")
+            os.environ["SITE_DATA"] = str(dp)
+            os.environ["SITE_HTML"] = str(hp)
+            old_argv = sys.argv
+            try:
+                sys.argv = ["sync-site.py"]
+                self.assertEqual(ss.main(), 0)
             finally:
                 sys.argv = old_argv
                 del os.environ["SITE_DATA"]
